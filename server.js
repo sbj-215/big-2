@@ -299,7 +299,8 @@ function advanceAfterPass(room, playerId) {
   const activeIds = activePlayers(room).map((player) => player.id);
   const challengerIds = activeIds.filter((id) => id !== room.lastPlay?.playerId);
   if (challengerIds.every((id) => room.passed.has(id))) {
-    const starter = nextActiveAfter(room, room.lastPlay.playerId);
+    const lastPlayerStillActive = activeIds.includes(room.lastPlay.playerId);
+    const starter = lastPlayerStillActive ? room.lastPlay.playerId : nextActiveAfter(room, room.lastPlay.playerId);
     startTrick(room, starter);
     return;
   }
@@ -469,7 +470,7 @@ function handleAction(ws, payload) {
       if (!canBeat(combo, room.lastPlay?.combo || null)) throw new Error("这手牌压不过上一手。");
       player.hand = removed.next;
       room.lastPlay = { playerId: player.id, cards: sortCards(removed.removed), combo };
-      room.passed = new Set();
+      if (room.mode !== "poverty") room.passed = new Set();
       room.mustContainClub3 = false;
       advanceAfterPlay(room, player);
       broadcast(room);
@@ -496,16 +497,26 @@ function serveStatic(req, res) {
     res.end(body);
     return;
   }
-  const filePath = path.join(PUBLIC_DIR, urlPath === "/" ? "index.html" : urlPath);
-  if (!filePath.startsWith(PUBLIC_DIR)) {
+
+  const relativePath = urlPath === "/" ? "index.html" : urlPath.replace(/^\/+/, "");
+  const filePath = path.resolve(PUBLIC_DIR, relativePath);
+  if (!filePath.startsWith(path.resolve(PUBLIC_DIR))) {
     res.writeHead(403);
     res.end("Forbidden");
     return;
   }
+
   fs.readFile(filePath, (error, data) => {
     if (error) {
-      res.writeHead(404);
-      res.end("Not found");
+      fs.readFile(path.join(PUBLIC_DIR, "index.html"), (fallbackError, fallbackData) => {
+        if (fallbackError) {
+          res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+          res.end(`Not found: ${filePath}`);
+          return;
+        }
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(fallbackData);
+      });
       return;
     }
     const ext = path.extname(filePath);
@@ -583,7 +594,19 @@ server.on("upgrade", (req, socket) => {
   });
 });
 
-server.listen(PORT, HOST, () => {
-  console.log("Dalaoer server running:");
-  for (const url of getNetworkUrls()) console.log(`  ${url}`);
-});
+if (require.main === module) {
+  server.listen(PORT, HOST, () => {
+    console.log("Dalaoer server running:");
+    console.log(`  static files: ${PUBLIC_DIR}`);
+    for (const url of getNetworkUrls()) console.log(`  ${url}`);
+  });
+}
+
+module.exports = {
+  activePlayers,
+  advanceAfterPass,
+  canBeat,
+  classify,
+  nextActiveAfter,
+  startTrick
+};
