@@ -1,72 +1,68 @@
-# 台湾大老二联网版
+# Taiwan Big Two Multiplayer
 
-这是一个零依赖 Node.js 网站，支持 3-4 人用浏览器实时联机玩台湾大老二。Windows 和 macOS 玩家只需要能打开网页，不需要安装客户端。
+A zero-dependency Node.js website for playing Taiwan Big Two with 3-4 players in real time.
 
-## 本机启动
+Players on Windows, macOS, iPhone, Android, or any modern browser can join by opening the same website URL.
 
-Windows 可以双击：
+## Run Locally
+
+Windows:
 
 ```text
 start-windows.bat
 ```
 
-macOS 可以在终端运行：
+macOS or Linux:
 
 ```bash
 sh start-macos.sh
 ```
 
-也可以直接运行：
+Or run Node directly:
 
 ```bash
 node server.js
 ```
 
-默认端口是 `3000`。启动后打开：
+Then open:
 
 ```text
 http://localhost:3000
 ```
 
-## 同一 Wi-Fi / 局域网联机
+## LAN Play
 
-启动服务器的电脑会在首页显示类似这样的地址：
+The home page displays network URLs such as:
 
 ```text
 http://192.168.1.25:3000
 ```
 
-其他 Windows 或 Mac 电脑只要在同一个 Wi-Fi/LAN，打开这个地址即可加入房间。
+Other computers on the same Wi-Fi or LAN can open that address and join the room.
 
-如果其他电脑打不开：
+If other devices cannot connect:
 
-- 确认所有电脑在同一个网络。
-- Windows 可能需要允许 Node.js 通过防火墙。
-- macOS 可能需要在系统设置里允许传入连接。
-- 不要把 `localhost` 发给别人；`localhost` 只代表各自自己的电脑。
+- Make sure all players are on the same network.
+- Allow Node.js through Windows Firewall if prompted.
+- On macOS, allow incoming network connections if prompted.
+- Do not share `localhost` with other players. `localhost` only works on the server computer.
 
-## 公网联机
+## Public Internet Play
 
-跨城市或不在同一个网络时，需要把这个项目部署到一台公网服务器，或支持 WebSocket 的平台。部署后玩家打开你的域名即可，例如：
+For players outside the same network, deploy this project to a public server or a hosting platform that supports WebSocket connections.
 
-```text
-https://cards.example.com
-```
+The client automatically connects to the current site host:
 
-前端会自动根据当前网页地址连接 WebSocket：
+- `http://` uses `ws://`
+- `https://` uses `wss://`
 
-- HTTP 页面使用 `ws://`
-- HTTPS 页面使用 `wss://`
+If using a reverse proxy such as Nginx, Caddy, or Cloudflare Tunnel, make sure WebSocket upgrade requests are allowed.
 
-如果你放在 Nginx、Caddy、Cloudflare Tunnel、反向代理或云服务器后面，要确保代理允许 WebSocket `Upgrade` 请求。
-
-## 配置
-
-可用环境变量：
+## Configuration
 
 ```bash
 PORT=3000 HOST=0.0.0.0 node server.js
 ```
 
-- `PORT`：服务端口。
-- `HOST`：监听地址。默认 `0.0.0.0`，表示允许局域网设备访问。
+- `PORT`: server port, default `3000`
+- `HOST`: bind address, default `0.0.0.0` for LAN access
