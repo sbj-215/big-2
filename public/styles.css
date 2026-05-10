@@ -189,6 +189,20 @@ p {
   margin-bottom: 10px;
 }
 
+.hand-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+.hand-tools button {
+  background: white;
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
 .hand,
 .cards {
   display: flex;

@@ -2,6 +2,7 @@ const assert = require("assert");
 const {
   advanceAfterPass,
   canBeat,
+  canPlayerPass,
   classify
 } = require("./server");
 
@@ -57,6 +58,24 @@ function testPovertyPassStateSurvivesAPlay() {
   assert.ok(room.passed.has("D"), "poverty-mode passer should stay locked out until the trick ends");
 }
 
+function testLeadPlayerCannotPass() {
+  const room = makeRoom(["A", "B", "C"]);
+  room.phase = "play";
+  room.turn = "A";
+  room.lastPlay = null;
+
+  assert.strictEqual(canPlayerPass(room, "A"), false, "lead player with a fresh trick must play, not pass");
+}
+
+function testFollowingPlayerCanPass() {
+  const room = makeRoom(["A", "B", "C"]);
+  room.phase = "play";
+  room.turn = "B";
+  room.lastPlay = { playerId: "A", combo: classify([{ id: "C5", rank: "5", suit: "C" }]) };
+
+  assert.strictEqual(canPlayerPass(room, "B"), true, "following player may pass when there is a live play to beat");
+}
+
 function testBombAndStraightRules() {
   const straight = classify([
     { id: "CA", rank: "A", suit: "C" },
@@ -96,6 +115,8 @@ function testBombAndStraightRules() {
 testTrickReturnsToLastPlayer();
 testFinishedLastPlayerPassesTurnForward();
 testPovertyPassStateSurvivesAPlay();
+testLeadPlayerCannotPass();
+testFollowingPlayerCanPass();
 testBombAndStraightRules();
 
 console.log("Rule tests passed");

@@ -182,6 +182,7 @@ function viewFor(room, viewerId) {
   const viewer = room.players.find((player) => player.id === viewerId);
   return {
     roomId: room.id,
+    me: viewerId,
     phase: room.phase,
     mode: room.mode,
     message: room.message,
@@ -306,6 +307,10 @@ function advanceAfterPass(room, playerId) {
   }
   room.turn = nextActiveAfter(room, playerId);
   while (room.turn && room.passed.has(room.turn)) room.turn = nextActiveAfter(room, room.turn);
+}
+
+function canPlayerPass(room, playerId) {
+  return room.phase === "play" && room.turn === playerId && Boolean(room.lastPlay) && !room.passed.has(playerId);
 }
 
 function deal(room) {
@@ -451,7 +456,7 @@ function handleAction(ws, payload) {
 
     if (action === "pass") {
       if (room.phase !== "play" || room.turn !== player.id) throw new Error("现在不是你的回合。");
-      if (!room.lastPlay) throw new Error("新一轮必须出牌。");
+      if (!canPlayerPass(room, player.id)) throw new Error("新一轮拿到牌权时必须出牌，不能 Pass。");
       room.passed.add(player.id);
       advanceAfterPass(room, player.id);
       broadcast(room);
@@ -606,6 +611,7 @@ module.exports = {
   activePlayers,
   advanceAfterPass,
   canBeat,
+  canPlayerPass,
   classify,
   nextActiveAfter,
   startTrick

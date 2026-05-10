@@ -1,12 +1,19 @@
 const state = {
   ws: null,
   game: null,
-  selected: new Set()
+  selected: new Set(),
+  handOrder: []
 };
 
 const $ = (id) => document.getElementById(id);
 const suitText = { C: "♣", D: "♦", H: "♥", S: "♠" };
 const rankText = { J: "J", Q: "Q", K: "K", A: "A" };
+const rankOrder = ["3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "2"];
+const suitOrder = ["C", "D", "H", "S"];
+
+function cardStrength(card) {
+  return rankOrder.indexOf(card.rank) * 4 + suitOrder.indexOf(card.suit);
+}
 
 function connect() {
   if (state.ws && state.ws.readyState <= 1) return state.ws;
@@ -15,11 +22,13 @@ function connect() {
     const message = JSON.parse(event.data);
     if (message.type === "state") {
       state.game = message.state;
+      syncHandOrder(message.state.hand);
       state.selected.clear();
       render();
     }
     if (message.type === "error") {
       $("status").textContent = message.message;
+      renderActions();
     }
   });
   return state.ws;
@@ -42,28 +51,62 @@ function send(payload) {
   else ws.addEventListener("open", () => ws.send(JSON.stringify(payload)), { once: true });
 }
 
+function syncHandOrder(hand) {
+  const known = new Set(hand.map((card) => card.id));
+  const kept = state.handOrder.filter((id) => known.has(id));
+  const newCards = hand.filter((card) => !kept.includes(card.id)).sort((a, b) => cardStrength(a) - cardStrength(b)).map((card) => card.id);
+  state.handOrder = [...kept, ...newCards];
+}
+
+function orderedHand() {
+  const hand = state.game?.hand || [];
+  const byId = new Map(hand.map((card) => [card.id, card]));
+  return state.handOrder.map((id) => byId.get(id)).filter(Boolean);
+}
+
+function sortHand() {
+  state.handOrder = orderedHand().sort((a, b) => cardStrength(a) - cardStrength(b)).map((card) => card.id);
+  renderHand();
+}
+
+function moveSelected(direction) {
+  const ids = [...state.handOrder];
+  if (direction < 0) {
+    for (let i = 1; i < ids.length; i += 1) {
+      if (state.selected.has(ids[i]) && !state.selected.has(ids[i - 1])) {
+        [ids[i - 1], ids[i]] = [ids[i], ids[i - 1]];
+      }
+    }
+  } else {
+    for (let i = ids.length - 2; i >= 0; i -= 1) {
+      if (state.selected.has(ids[i]) && !state.selected.has(ids[i + 1])) {
+        [ids[i + 1], ids[i]] = [ids[i], ids[i + 1]];
+      }
+    }
+  }
+  state.handOrder = ids;
+  renderHand();
+}
+
 function cardLabel(card) {
   return `${suitText[card.suit]}${rankText[card.rank] || card.rank}`;
 }
 
-function cardNode(card) {
-  const el = document.createElement("button");
+function cardNode(card, selectable = true) {
+  const el = document.createElement(selectable ? "button" : "div");
   el.className = `card ${card.suit === "D" || card.suit === "H" ? "red" : ""} ${state.selected.has(card.id) ? "selected" : ""}`;
   el.textContent = cardLabel(card);
   el.title = card.id;
-  el.addEventListener("click", () => {
-    if (state.selected.has(card.id)) state.selected.delete(card.id);
-    else state.selected.add(card.id);
-    renderHand();
-  });
+  if (selectable) {
+    el.type = "button";
+    el.addEventListener("click", () => {
+      if (state.selected.has(card.id)) state.selected.delete(card.id);
+      else state.selected.add(card.id);
+      renderHand();
+      renderActions();
+    });
+  }
   return el;
-}
-
-function renderCards(cards) {
-  const wrap = document.createElement("div");
-  wrap.className = "cards";
-  cards.forEach((card) => wrap.appendChild(cardNode(card)));
-  return wrap;
 }
 
 function renderPlayers() {
@@ -90,22 +133,15 @@ function renderHand() {
   const game = state.game;
   $("hand").innerHTML = "";
   if (!game) return;
-  game.hand.forEach((card) => $("hand").appendChild(cardNode(card)));
+  orderedHand().forEach((card) => $("hand").appendChild(cardNode(card)));
+  const hasSelection = state.selected.size > 0;
+  $("moveLeftBtn").disabled = !hasSelection;
+  $("moveRightBtn").disabled = !hasSelection;
+  $("sortHandBtn").disabled = orderedHand().length < 2;
 }
 
-function render() {
+function renderLastPlay() {
   const game = state.game;
-  $("lobby").hidden = Boolean(game);
-  $("readyBtn").hidden = !game || !["lobby", "gameOver"].includes(game.phase);
-  $("playBtn").hidden = !game || !["play", "exchange"].includes(game.phase);
-  $("passBtn").hidden = !game || game.phase !== "play";
-  $("roomCode").textContent = game ? `房间 ${game.roomId}` : "";
-  $("status").textContent = game ? game.message : "建立房间或输入房间码加入。";
-
-  renderPlayers();
-  renderHand();
-
-  if (!game) return;
   const last = $("lastPlay");
   last.innerHTML = "";
   if (game.lastPlay) {
@@ -114,25 +150,53 @@ function render() {
     last.appendChild(label);
     const cards = document.createElement("div");
     cards.className = "cards";
-    game.lastPlay.cards.forEach((card) => {
-      const el = document.createElement("div");
-      el.className = `card ${card.suit === "D" || card.suit === "H" ? "red" : ""}`;
-      el.textContent = cardLabel(card);
-      cards.appendChild(el);
-    });
+    game.lastPlay.cards.forEach((card) => cards.appendChild(cardNode(card, false)));
     last.appendChild(cards);
   } else {
     last.textContent = game.phase === "exchange" ? "换牌阶段" : "新一轮，可任意出合法牌";
   }
+}
 
-  const myReturn = game.exchange?.myReturn;
+function renderActions() {
+  const game = state.game;
+  const myReturn = game?.exchange?.myReturn;
+  const isMyTurn = Boolean(game?.turn && game.turn === game.me);
+
+  $("readyBtn").hidden = !game || !["lobby", "gameOver"].includes(game.phase);
+  $("playBtn").hidden = !game || !(game.phase === "play" || myReturn);
+  $("playBtn").disabled = Boolean(game && game.phase === "play" && !isMyTurn) || Boolean(myReturn && state.selected.size !== myReturn.count);
+  $("passBtn").hidden = !game || game.phase !== "play" || !game.lastPlay || !isMyTurn;
+  $("passBtn").disabled = !game || game.phase !== "play" || !game.lastPlay || !isMyTurn;
+
   if (myReturn) {
     $("hint").textContent = `请选择 ${myReturn.count} 张牌还给对方。`;
     $("playBtn").textContent = "还牌";
+  } else if (game?.turn) {
+    $("hint").textContent = `${game.players.find((p) => p.id === game.turn)?.name || "玩家"} 的回合`;
+    $("playBtn").textContent = "出牌";
   } else {
-    $("hint").textContent = game.turn ? (game.players.find((p) => p.id === game.turn)?.name + " 的回合") : "你的手牌";
+    $("hint").textContent = "你的手牌";
     $("playBtn").textContent = "出牌";
   }
+
+  if (game?.phase === "play" && !game.lastPlay && isMyTurn) {
+    $("status").textContent = "新一轮拿到牌权的人必须出牌，不能 Pass。";
+  }
+}
+
+function render() {
+  const game = state.game;
+  $("lobby").hidden = Boolean(game);
+  $("handTools").hidden = !game;
+  $("roomCode").textContent = game ? `房间 ${game.roomId}` : "";
+  $("status").textContent = game ? game.message : "建立房间或输入房间码加入。";
+
+  renderPlayers();
+  renderHand();
+
+  if (!game) return;
+  renderLastPlay();
+  renderActions();
   $("results").innerHTML = game.results ? game.results.map((item) => `第 ${item.rank} 名：${item.name}`).join("<br>") : "";
 }
 
@@ -145,6 +209,9 @@ $("playBtn").addEventListener("click", () => {
   if (state.game?.exchange?.myReturn) send({ action: "returnTribute", cards });
   else send({ action: "play", cards });
 });
+$("moveLeftBtn").addEventListener("click", () => moveSelected(-1));
+$("moveRightBtn").addEventListener("click", () => moveSelected(1));
+$("sortHandBtn").addEventListener("click", sortHand);
 
 connect();
 loadNetworkInfo();
