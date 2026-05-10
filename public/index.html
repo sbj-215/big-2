@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>台湾大老二</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="topbar">
+        <div>
+          <h1>台湾大老二</h1>
+          <p id="status">建立房间或输入房间码加入。</p>
+        </div>
+        <div class="room-code" id="roomCode"></div>
+      </section>
+
+      <section class="lobby" id="lobby">
+        <input id="nameInput" maxlength="16" placeholder="昵称" />
+        <button id="createBtn">创建房间</button>
+        <input id="roomInput" maxlength="5" placeholder="房间码" />
+        <button id="joinBtn">加入</button>
+      </section>
+
+      <section class="network" id="network">
+        <div class="network-title">联网访问地址</div>
+        <div id="networkUrls">正在检测本机地址...</div>
+      </section>
+
+      <section class="table">
+        <aside class="players" id="players"></aside>
+        <section class="center">
+          <div class="last-play" id="lastPlay">等待开始</div>
+          <div class="actions">
+            <button id="readyBtn" hidden>准备 / 下一局</button>
+            <button id="playBtn" hidden>出牌</button>
+            <button id="passBtn" hidden>Pass</button>
+          </div>
+          <div class="results" id="results"></div>
+        </section>
+      </section>
+
+      <section class="hand-wrap">
+        <div class="hint" id="hint">你的手牌会显示在这里。</div>
+        <div class="hand" id="hand"></div>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

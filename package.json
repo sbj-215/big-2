@@ -1,0 +1,9 @@
+{
+  "name": "dalaoer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Taiwan Big Two multiplayer web game",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
