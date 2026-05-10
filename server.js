@@ -202,6 +202,7 @@ function viewFor(room, viewerId) {
       awaiting: room.exchange.awaiting.map((item) => ({ richId: item.richId, poorId: item.poorId, count: item.count, done: item.done })),
       myReturn: room.exchange.awaiting.find((item) => item.richId === viewerId && !item.done) || null
     } : null,
+    chat: room.chat || [],
     results: room.results || null
   };
 }
@@ -282,6 +283,23 @@ function startTrick(room, starterId) {
   room.passed = new Set();
 }
 
+function advanceTurnAfterLivePlay(room, player) {
+  if (room.mode !== "poverty") {
+    room.turn = nextActiveAfter(room, player.id);
+    return;
+  }
+
+  const activeIds = activePlayers(room).map((item) => item.id);
+  const challengerIds = activeIds.filter((id) => id !== player.id);
+  if (challengerIds.every((id) => room.passed.has(id))) {
+    startTrick(room, player.id);
+    return;
+  }
+
+  room.turn = nextActiveAfter(room, player.id);
+  while (room.turn && room.passed.has(room.turn)) room.turn = nextActiveAfter(room, room.turn);
+}
+
 function advanceAfterPlay(room, player) {
   if (room.mode === "poverty" && player.hand.length === 0) {
     settlePovertyGame(room, player);
@@ -293,7 +311,7 @@ function advanceAfterPlay(room, player) {
     finishNormalIfNeeded(room);
     if (room.phase === "gameOver") return;
   }
-  room.turn = nextActiveAfter(room, player.id);
+  advanceTurnAfterLivePlay(room, player);
 }
 
 function advanceAfterPass(room, playerId) {
@@ -388,6 +406,7 @@ function createRoom(name) {
     lastPlay: null,
     passed: new Set(),
     finished: [],
+    chat: [],
     message: "等待 3-4 位玩家加入并准备。"
   };
   rooms.set(room.id, room);
@@ -430,6 +449,14 @@ function handleAction(ws, payload) {
     if (action === "ready") {
       player.ready = !player.ready;
       if ((room.phase === "lobby" || room.phase === "gameOver") && room.players.length >= 3 && room.players.every((item) => item.ready)) startHand(room);
+      broadcast(room);
+      return;
+    }
+
+    if (action === "chat") {
+      const text = String(payload.text || "").trim().slice(0, 160);
+      if (!text) throw new Error("聊天内容不能为空。");
+      room.chat = [...(room.chat || []), { id: makeId(8), playerId: player.id, name: player.name, text, at: Date.now() }].slice(-60);
       broadcast(room);
       return;
     }
@@ -609,6 +636,7 @@ if (require.main === module) {
 
 module.exports = {
   activePlayers,
+  advanceAfterPlay,
   advanceAfterPass,
   canBeat,
   canPlayerPass,

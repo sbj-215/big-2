@@ -161,16 +161,21 @@ function renderActions() {
   const game = state.game;
   const myReturn = game?.exchange?.myReturn;
   const isMyTurn = Boolean(game?.turn && game.turn === game.me);
+  const hasPassed = Boolean(game?.passed?.includes(game.me));
+  const canActInPlay = Boolean(game && game.phase === "play" && isMyTurn && !hasPassed);
 
   $("readyBtn").hidden = !game || !["lobby", "gameOver"].includes(game.phase);
-  $("playBtn").hidden = !game || !(game.phase === "play" || myReturn);
-  $("playBtn").disabled = Boolean(game && game.phase === "play" && !isMyTurn) || Boolean(myReturn && state.selected.size !== myReturn.count);
-  $("passBtn").hidden = !game || game.phase !== "play" || !game.lastPlay || !isMyTurn;
-  $("passBtn").disabled = !game || game.phase !== "play" || !game.lastPlay || !isMyTurn;
+  $("playBtn").hidden = !game || !((game.phase === "play" && canActInPlay) || myReturn);
+  $("playBtn").disabled = Boolean(game && game.phase === "play" && !canActInPlay) || Boolean(myReturn && state.selected.size !== myReturn.count);
+  $("passBtn").hidden = !game || game.phase !== "play" || !game.lastPlay || !canActInPlay;
+  $("passBtn").disabled = !game || game.phase !== "play" || !game.lastPlay || !canActInPlay;
 
   if (myReturn) {
     $("hint").textContent = `请选择 ${myReturn.count} 张牌还给对方。`;
     $("playBtn").textContent = "还牌";
+  } else if (hasPassed) {
+    $("hint").textContent = "你本轮已经 Pass，等待下一轮。";
+    $("playBtn").textContent = "出牌";
   } else if (game?.turn) {
     $("hint").textContent = `${game.players.find((p) => p.id === game.turn)?.name || "玩家"} 的回合`;
     $("playBtn").textContent = "出牌";
@@ -182,6 +187,32 @@ function renderActions() {
   if (game?.phase === "play" && !game.lastPlay && isMyTurn) {
     $("status").textContent = "新一轮拿到牌权的人必须出牌，不能 Pass。";
   }
+}
+
+function renderChat() {
+  const log = $("chatLog");
+  if (!log) return;
+  log.innerHTML = "";
+  const messages = state.game?.chat || [];
+  if (!messages.length) {
+    const empty = document.createElement("div");
+    empty.className = "player-meta";
+    empty.textContent = "还没有聊天消息。";
+    log.appendChild(empty);
+    return;
+  }
+  messages.forEach((message) => {
+    const row = document.createElement("div");
+    row.className = "chat-message";
+    const name = document.createElement("span");
+    name.className = "chat-name";
+    name.textContent = message.name;
+    const text = document.createElement("span");
+    text.textContent = message.text;
+    row.append(name, text);
+    log.appendChild(row);
+  });
+  log.scrollTop = log.scrollHeight;
 }
 
 function render() {
@@ -197,6 +228,7 @@ function render() {
   if (!game) return;
   renderLastPlay();
   renderActions();
+  renderChat();
   $("results").innerHTML = game.results ? game.results.map((item) => `第 ${item.rank} 名：${item.name}`).join("<br>") : "";
 }
 
@@ -212,6 +244,14 @@ $("playBtn").addEventListener("click", () => {
 $("moveLeftBtn").addEventListener("click", () => moveSelected(-1));
 $("moveRightBtn").addEventListener("click", () => moveSelected(1));
 $("sortHandBtn").addEventListener("click", sortHand);
+$("chatForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const input = $("chatInput");
+  const text = input.value.trim();
+  if (!text) return;
+  send({ action: "chat", text });
+  input.value = "";
+});
 
 connect();
 loadNetworkInfo();

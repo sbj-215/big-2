@@ -1,5 +1,6 @@
 const assert = require("assert");
 const {
+  advanceAfterPlay,
   advanceAfterPass,
   canBeat,
   canPlayerPass,
@@ -56,6 +57,21 @@ function testPovertyPassStateSurvivesAPlay() {
 
   assert.ok(room.passed.has("B"), "poverty-mode passer should stay locked out until the trick ends");
   assert.ok(room.passed.has("D"), "poverty-mode passer should stay locked out until the trick ends");
+}
+
+function testPovertyPlaySkipsPassedPlayers() {
+  const room = makeRoom(["bigPoor", "smallPoor", "smallRich", "bigRich"]);
+  room.mode = "poverty";
+  room.lastPlay = { playerId: "smallRich", combo: classify([{ id: "CK", rank: "K", suit: "C" }]) };
+  room.turn = "bigRich";
+  room.passed = new Set(["smallPoor", "bigPoor"]);
+  const player = room.players.find((item) => item.id === "bigRich");
+
+  advanceAfterPlay(room, player);
+
+  assert.strictEqual(room.turn, "smallRich", "poverty mode should not pass turn to a player who already passed");
+  assert.strictEqual(room.lastPlay.playerId, "smallRich");
+  assert.strictEqual(room.passed.size, 2);
 }
 
 function testLeadPlayerCannotPass() {
@@ -115,6 +131,7 @@ function testBombAndStraightRules() {
 testTrickReturnsToLastPlayer();
 testFinishedLastPlayerPassesTurnForward();
 testPovertyPassStateSurvivesAPlay();
+testPovertyPlaySkipsPassedPlayers();
 testLeadPlayerCannotPass();
 testFollowingPlayerCanPass();
 testBombAndStraightRules();
